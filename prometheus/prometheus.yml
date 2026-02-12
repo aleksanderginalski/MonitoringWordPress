@@ -1,0 +1,64 @@
+# ============================================
+# PROMETHEUS CONFIGURATION
+# ============================================
+
+global:
+  scrape_interval: 15s       # Co ile zbierać metryki (domyślnie)
+  evaluation_interval: 15s   # Co ile sprawdzać reguły alertów
+  
+  external_labels:
+    monitor: 'wordpress-monitoring'  # Etykieta dla tego Prometheusa
+
+# ============================================
+# SCRAPE CONFIGS - Skąd zbierać metryki
+# ============================================
+
+scrape_configs:
+
+  # -----------------------------------------
+  # 1. PROMETHEUS SAM SIEBIE (meta-monitoring)
+  # -----------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    
+  # -----------------------------------------
+  # 2. NODE EXPORTER (metryki systemu operacyjnego)
+  # -----------------------------------------
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node_exporter:9100']
+    
+  # -----------------------------------------
+  # 3. cADVISOR (metryki kontenerów Docker)
+  # -----------------------------------------
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    
+  # -----------------------------------------
+  # 4. MYSQL EXPORTER (metryki bazy danych)
+  # -----------------------------------------
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysqld_exporter:9104']
+    
+  # -----------------------------------------
+  # 5. BLACKBOX EXPORTER (pingowanie WordPress HTTP)
+  # -----------------------------------------
+  - job_name: 'blackbox_wordpress'
+    metrics_path: /probe              # Endpoint do sprawdzania
+    params:
+      module: [http_2xx]              # Moduł z blackbox.yml (sprawdź HTTP 200)
+    static_configs:
+      - targets:
+          - http://wordpress:80       # URL do sprawdzenia
+    relabel_configs:
+      # Przepisz target na parametr __param_target
+      - source_labels: [__address__]
+        target_label: __param_target
+      # Ustaw adres Blackbox Exporter jako faktyczny target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115

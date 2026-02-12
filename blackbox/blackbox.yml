@@ -1,0 +1,51 @@
+# ============================================
+# BLACKBOX EXPORTER CONFIGURATION
+# Definiuje MODUŁY sprawdzania
+# ============================================
+
+modules:
+  
+  # -----------------------------------------
+  # HTTP GET - Sprawdza czy strona odpowiada 200 OK
+  # -----------------------------------------
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]  # Akceptuj tylko 200 OK
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: false     # Akceptuj HTTP (nie tylko HTTPS)
+  
+  # -----------------------------------------
+  # HTTP POST - Sprawdza formularze/API
+  # -----------------------------------------
+  http_post_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: POST
+      headers:
+        Content-Type: application/x-www-form-urlencoded
+      body: 'username=test&password=test'
+      valid_status_codes: [200, 201]
+  
+  # -----------------------------------------
+  # TCP Connect - Sprawdza czy port jest otwarty
+  # -----------------------------------------
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: "ip4"
+  
+  # -----------------------------------------
+  # ICMP Ping - Sprawdza czy host odpowiada na ping
+  # -----------------------------------------
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"

@@ -1,0 +1,205 @@
+# ============================================
+# DOCKER COMPOSE - WordPress Monitoring Stack
+# ============================================
+version: '3.8'
+
+# ============================================
+# NETWORKS - Wspólna sieć dla wszystkich
+# ============================================
+networks:
+  monitoring:
+    driver: bridge
+
+# ============================================
+# VOLUMES - Dane które przetrwają restart
+# ============================================
+volumes:
+  prometheus_data: {}      # Dane Prometheusa (metryki)
+  grafana_data: {}         # Dashboardy i konfiguracja Grafany
+  mysql_data: {}           # Baza danych WordPress
+  wordpress_data: {}       # Pliki WordPress (motywy, pluginy)
+
+# ============================================
+# SERVICES - Kontenery
+# ============================================
+services:
+
+  # ------------------------------------------
+  # 1. MYSQL - Baza danych dla WordPress
+  # ------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - monitoring
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ------------------------------------------
+  # 2. WORDPRESS - Aplikacja WWW
+  # ------------------------------------------
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: unless-stopped
+    ports:
+      - "8080:80"   # http://localhost:8080 w przeglądarce
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - monitoring
+    depends_on:
+      mysql:
+        condition: service_healthy   # ← Czeka na healthcheck MySQL!
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  # ------------------------------------------
+  # 3. PROMETHEUS - Zbieranie metryk
+  # ------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"   # http://localhost:9090
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    depends_on:
+      - node_exporter
+      - cadvisor
+      - blackbox_exporter
+      - mysqld_exporter
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------------
+  # 4. GRAFANA - Wizualizacja
+  # ------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # http://localhost:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ''
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - monitoring
+    depends_on:
+      prometheus:
+        condition: service_healthy   # ← Czeka na Prometheusa!
+
+  # ------------------------------------------
+  # 5. NODE EXPORTER - Metryki systemu
+  # ------------------------------------------
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring
+    ports:
+      - "9100:9100"
+
+  # ------------------------------------------
+  # 6. cADVISOR - Metryki kontenerów Docker
+  # ------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring
+    ports:
+      - "8081:8080"   # http://localhost:8081
+
+  # ------------------------------------------
+  # 7. BLACKBOX EXPORTER - Pingowanie HTTP
+  # ------------------------------------------
+  blackbox_exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox_exporter
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/blackbox/blackbox.yml'
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox/blackbox.yml
+    networks:
+      - monitoring
+    ports:
+      - "9115:9115"
+    depends_on:
+      wordpress:
+        condition: service_healthy   # ← Czeka na WordPress!
+
+  # ------------------------------------------
+  # 8. MYSQL EXPORTER - Metryki bazy danych
+  # ------------------------------------------
+  mysqld_exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "root:rootpassword@(mysql:3306)/"
+    networks:
+      - monitoring
+    ports:
+      - "9104:9104"
+    depends_on:
+      mysql:
+        condition: service_healthy   # ← Czeka na MySQL!
