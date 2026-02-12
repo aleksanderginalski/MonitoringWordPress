@@ -1,7 +1,6 @@
 # ============================================
 # DOCKER COMPOSE - WordPress Monitoring Stack
 # ============================================
-version: '3.8'
 
 # ============================================
 # NETWORKS - Wspólna sieć dla wszystkich
@@ -194,12 +193,13 @@ services:
     image: prom/mysqld-exporter:latest
     container_name: mysqld_exporter
     restart: unless-stopped
-    environment:
-      DATA_SOURCE_NAME: "root:rootpassword@(mysql:3306)/"
+    command:
+    - "--mysqld.username=root:rootpassword"
+    - "--mysqld.address=mysql:3306"
     networks:
-      - monitoring
+    - monitoring
     ports:
-      - "9104:9104"
+    - "9104:9104"
     depends_on:
       mysql:
-        condition: service_healthy   # ← Czeka na MySQL!
+        condition: service_healthy

@@ -1,1 +1,17 @@
+# Archiwum (stare pliki binarne)
 archive/
+
+# Dane kontenerów (nie commitujemy danych!)
+# Docker utworzy je automatycznie przy "docker compose up"
+# Nie commituj volumes - są tworzone automatycznie
+
+# Logi
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
