@@ -150,26 +150,25 @@ services:
   # 6. cADVISOR - Metryki kontenerów Docker
   # ------------------------------------------
   cadvisor:
-  image: gcr.io/cadvisor/cadvisor:v0.49.1
-  container_name: cadvisor
-  restart: unless-stopped
-  privileged: true
-  devices:
-    - /dev/kmsg
-  command:                           # ← DODAJ TO!
-    - --docker_only=true            # Tylko kontenery Docker
-    - --housekeeping_interval=10s   # Co ile zbierać metryki
-  volumes:
-    - /:/rootfs:ro
-    - /var/run:/var/run:ro
-    - /sys:/sys:ro
-    - /var/lib/docker/:/var/lib/docker:ro
-    - /dev/disk/:/dev/disk:ro
-    - /var/run/docker.sock:/var/run/docker.sock:ro  # ← DODAJ tę linię!
-  networks:
-    - monitoring
-  ports:
-    - "8081:8080"
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    command:
+      - --housekeeping_interval=10s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /mnt/wsl/docker-desktop-bind-mounts/Ubuntu/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring
+    ports:
+      - "8081:8080"
 
   # ------------------------------------------
   # 7. BLACKBOX EXPORTER - Pingowanie HTTP
